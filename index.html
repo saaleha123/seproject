@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Single Page Auth Flow</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f2f2f2;
+    margin: 0; padding: 0;
+  }
+  .container {
+    max-width: 400px;
+    margin: 80px auto;
+    padding: 30px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  h2 {
+    text-align: center;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+  }
+  label {
+    margin-top: 10px;
+  }
+  input {
+    padding: 8px;
+    margin-top: 5px;
+    font-size: 16px;
+  }
+  button {
+    margin-top: 20px;
+    padding: 10px;
+    font-size: 16px;
+    background: #2a72d6;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  button:hover {
+    background: #1d5bbf;
+  }
+  .error-message {
+    color: red;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  .link {
+    margin-top: 15px;
+    text-align: center;
+  }
+  .link a {
+    cursor: pointer;
+    color: #2a72d6;
+    text-decoration: underline;
+  }
+  #mainContent {
+    text-align: center;
+  }
+  #logoutBtn {
+    margin-top: 30px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Registration Form -->
+  <div id="registerSection" style="display:none;">
+    <h2>Register</h2>
+    <form id="registrationForm" novalidate>
+      <label for="regFullName">Full Name</label>
+      <input type="text" id="regFullName" required />
+      
+      <label for="regEmail">Email ID</label>
+      <input type="email" id="regEmail" required />
+      
+      <label for="regPassword">Password</label>
+      <input type="password" id="regPassword" required />
+      
+      <label for="regConfirmPassword">Confirm Password</label>
+      <input type="password" id="regConfirmPassword" required />
+      
+      <div id="regError" class="error-message"></div>
+      
+      <button type="submit">Register</button>
+    </form>
+    <div class="link">
+      Already have an account? <a id="goToLogin">Login here</a>
+    </div>
+  </div>
+
+  <!-- Login Form -->
+  <div id="loginSection" style="display:none;">
+    <h2>Login</h2>
+    <form id="loginForm" novalidate>
+      <label for="loginEmail">Email ID</label>
+      <input type="email" id="loginEmail" required />
+      
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" required />
+      
+      <div id="loginError" class="error-message"></div>
+      
+      <button type="submit">Login</button>
+    </form>
+    <div class="link">
+      Don't have an account? <a id="goToRegister">Register here</a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="mainSection" style="display:none;">
+    <h2>Welcome to the Main Content Page</h2>
+    <div id="userInfo"></div>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  // Elements
+  const registerSection = document.getElementById('registerSection');
+  const loginSection = document.getElementById('loginSection');
+  const mainSection = document.getElementById('mainSection');
+
+  const regForm = document.getElementById('registrationForm');
+  const loginForm = document.getElementById('loginForm');
+
+  const regError = document.getElementById('regError');
+  const loginError = document.getElementById('loginError');
+  const userInfo = document.getElementById('userInfo');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  const goToLoginLink = document.getElementById('goToLogin');
+  const goToRegisterLink = document.getElementById('goToRegister');
+
+  // Show section helpers
+  function showSection(section) {
+    registerSection.style.display = 'none';
+    loginSection.style.display = 'none';
+    mainSection.style.display = 'none';
+    section.style.display = 'block';
+  }
+
+  // Check if user logged in
+  function checkSession() {
+    const email = localStorage.getItem('loggedInUser');
+    if (email) {
+      const users = JSON.parse(localStorage.getItem('users') || '{}');
+      const user = users[email];
+      if (user) {
+        userInfo.textContent = Logged in as: ${user.fullName} (${email});
+        showSection(mainSection);
+        return true;
+      }
+      // invalid user - clear session
+      localStorage.removeItem('loggedInUser');
+    }
+    return false;
+  }
+
+  // Show login form initially or main if logged in
+  if (!checkSession()) {
+    showSection(loginSection);
+  }
+
+  // Link handlers
+  goToLoginLink.addEventListener('click', e => {
+    e.preventDefault();
+    regError.textContent = '';
+    showSection(loginSection);
+  });
+  goToRegisterLink.addEventListener('click', e => {
+    e.preventDefault();
+    loginError.textContent = '';
+    showSection(registerSection);
+  });
+
+  // Registration form submit
+  regForm.addEventListener('submit', e => {
+    e.preventDefault();
+    regError.textContent = '';
+
+    const fullName = document.getElementById('regFullName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+
+    if (!fullName || !email || !password || !confirmPassword) {
+      regError.textContent = 'All fields are required.';
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      regError.textContent = 'Invalid email format.';
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      regError.textContent = 'Passwords do not match.';
+      return;
+    }
+
+    // Password strength: at least 6 chars + digit
+    const passPattern = /^(?=.*\d).{6,}$/;
+    if (!passPattern.test(password)) {
+      regError.textContent = 'Password must be at least 6 characters and contain a digit.';
+      return;
+    }
+
+    let users = JSON.parse(localStorage.getItem('users') || '{}');
+    if (users[email]) {
+      regError.textContent = 'Email already exists.';
+      return;
+    }
+
+    users[email] = { fullName, password /* Note: no hashing here */ };
+    localStorage.setItem('users', JSON.stringify(users));
+
+    alert('Registration successful! Please login.');
+    regForm.reset();
+    showSection(loginSection);
+  });
+
+  // Login form submit
+  loginForm.addEventListener('submit', e => {
+    e.preventDefault();
+    loginError.textContent = '';
+
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!email || !password) {
+      loginError.textContent = 'Both fields are required.';
+      return;
+    }
+
+    const users = JSON.parse(localStorage.getItem('users') || '{}');
+    if (!users[email] || users[email].password !== password) {
+      loginError.textContent = 'Invalid email or password.';
+      return;
+    }
+
+    localStorage.setItem('loggedInUser', email);
+    loginForm.reset();
+    checkSession();
+  });
+
+  // Logout button
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('loggedInUser');
+    alert('You have successfully logged out.');
+    showSection(loginSection);
+  });
+
+})();
+</script>
+
+</body>
+</html>
